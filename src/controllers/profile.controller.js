@@ -162,6 +162,7 @@ export const updateProfile = async (req, res) => {
       });
     }
 
+    
     const updateData = {
       phone,
       rollNumber,
@@ -171,23 +172,28 @@ export const updateProfile = async (req, res) => {
       verificationMessage: "",
     };
 
+    let updateQuery = { $set: updateData };
+
     if (role === "DayScholar") {
-      updateData.dayScholarInfo =
+      const parsedDayScholarInfo =
         typeof req.body.dayScholarInfo === "string"
           ? JSON.parse(req.body.dayScholarInfo)
           : req.body.dayScholarInfo;
 
-      updateData.hostellerInfo = undefined;
+      updateQuery.$set.dayScholarInfo = parsedDayScholarInfo;
+      updateQuery.$unset = { hostellerInfo: "" };
     }
 
     if (role === "Hosteller") {
-      updateData.hostellerInfo =
+      const parsedHostellerInfo =
         typeof req.body.hostellerInfo === "string"
           ? JSON.parse(req.body.hostellerInfo)
           : req.body.hostellerInfo;
 
-      updateData.dayScholarInfo = undefined;
+      updateQuery.$set.hostellerInfo = parsedHostellerInfo;
+      updateQuery.$unset = { dayScholarInfo: "" };
     }
+
 
     if (req.file) {
       const idCardUrl = req.file.path;
@@ -206,13 +212,13 @@ export const updateProfile = async (req, res) => {
         });
       }
 
-      updateData.idCardUrl = idCardUrl;
-      updateData.profileVerified = true;
+      updateQuery.$set.idCardUrl = idCardUrl;
+      updateQuery.$set.profileVerified = true;
     }
 
     const profile = await Profile.findOneAndUpdate(
       { user: userId },
-      updateData,
+      updateQuery,
       { new: true, runValidators: true }
     );
 
@@ -221,6 +227,7 @@ export const updateProfile = async (req, res) => {
       message: "Profile updated successfully",
       profile,
     });
+
   } catch (error) {
     console.error("Update Profile Error:", error);
 
