@@ -9,11 +9,11 @@ const itemSchema = new mongoose.Schema({
     quantity: {
         type: Number,
         required: true,
-        min: 1
+        min: 0
     },
     unit: {
         type: String,
-        enum: ["piece", "kg", "g", "liter", "ml", "pack"],
+        enum: ["piece", "kg", "liter", "pack"],
         default: "piece"
     },
     estimatedPrice: {
