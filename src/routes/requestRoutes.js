@@ -1,7 +1,7 @@
 import express from 'express';
 import protect from '../middlewares/authMiddleware.js';
 import { roleCheck } from '../middlewares/roleMiddleware.js';
-import { acceptRequest, cancelRequest, completeRequest, createRequest, deleteRequest, getMyRequests, getPendingRequests, markAsPicked, updateRequest } from '../controllers/requestController.js';
+import { acceptRequest, cancelRequest, completeRequest, createRequest, deleteRequest, getMyDeliveries, getMyRequests, getPendingRequests, markAsPicked, updateRequest } from '../controllers/requestController.js';
 
 const router = express.Router();
 
@@ -23,4 +23,5 @@ router.patch("/:id/cancel",protect,cancelRequest);
 
 router.delete("/:id", protect, roleCheck("Hosteller"), deleteRequest);
 
+router.get("/my-deliveries", protect,roleCheck("DayScholar"),getMyDeliveries);
 export default router;

@@ -1,4 +1,5 @@
-import mongoose, { trusted } from "mongoose";
+import mongoose from "mongoose";
+import Counter from "./Counter.js";
 
 const itemSchema = new mongoose.Schema({
     name: {
@@ -23,7 +24,14 @@ const itemSchema = new mongoose.Schema({
     }
 });
 
+
+
 const requestSchema = new mongoose.Schema({
+    orderId: {
+        type: String,
+        unique: true,
+        // required: true
+    },
     hosteller: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
@@ -65,13 +73,27 @@ const requestSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ["pending", "accepted", "picked", "completed", "cancelled"],
+        enum: ["pending", "accepted", "picked", "completed", "cancelled", "expired"],
         default: "pending"
     },
     acceptedAt: Date,
     completedAt: Date
 },{timestamps: true}
 );
+
+requestSchema.pre("save", async function (next) {
+    if(!this.orderId){
+        
+            const counter = await Counter.findOneAndUpdate(
+                {name: "request"},
+                {$inc: {seq: 1}},
+                {new: true, upsert: true}
+            );
+            this.orderId = `REQ${counter.seq.toString().padStart(6, "0")}`;
+         
+        
+    }
+});
 
 requestSchema.index({ status: 1 });
 requestSchema.index({ hosteller: 1 });

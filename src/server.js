@@ -6,6 +6,7 @@ import profileRoutes from "./routes/profile.routes.js";
 import cors from "cors";
 import passport from './config/passport.js';
 import requestRoutes from './routes/requestRoutes.js'
+import expireOldRequests from "./utils/expireRequests.js";
 
 const app = express();
 connectDB();
@@ -21,4 +22,5 @@ app.use("/api/request",requestRoutes);
 const port = process.env.PORT||5500;
 app.listen(port,() =>{
     console.log("Server is started at PORT: ", port );
+    expireOldRequests();
 })

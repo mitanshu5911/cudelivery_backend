@@ -1,8 +1,23 @@
 import mongoose from "mongoose";
 import Request from "../models/Request.js";
+import Profile from "../models/Profile.js";
 
 export const createRequest = async (req, res) => {
+ 
   try {
+
+     const activeRequests = await Request.countDocuments({
+  hosteller: req.user._id,
+  status: { $in: ["pending", "accepted", "picked"] }
+});
+
+if (activeRequests >= 3) {
+  return res.status(400).json({
+    message: "You already have 3 active requests"
+  });
+}
+
+
     const { items, deliveryLocation, deliveryFee, urgency, instructions } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -105,7 +120,19 @@ export const getPendingRequests = async (req, res) => {
       .populate("hosteller", "name")
       .sort({ createdAt: -1 });
 
-    res.json(requests);
+    const populatedRequests = await Promise.all(
+      requests.map(async (request) => {
+        const profile = await Profile.findOne({
+          user: request.hosteller._id,
+        }).select("hostellerInfo role");
+
+        return {
+          ...request.toObject(),
+          hostellerProfile: profile,
+        };
+      })
+    );
+    res.json(populatedRequests);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -144,18 +171,8 @@ export const completeRequest = async (req, res) => {
 export const getMyRequests = async (req, res) => {
   try {
     const requests = await Request.find({ hosteller: req.user._id })
-      .sort({ createdAt: -1 });
-
-    res.json(requests);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-export const getAcceptedRequests = async (req, res) => {
-  try {
-    const requests = await Request.find({ acceptedBy: req.user._id })
-      .sort({ createdAt: -1 });
+      .populate("acceptedBy", "name")
+    .sort({ createdAt: -1 });
 
     res.json(requests);
   } catch (error) {
@@ -177,9 +194,12 @@ export const cancelRequest = async (req, res) => {
 
     if (
       request.hosteller.toString() === req.user._id.toString() &&
-      request.status === "pending"
+      request.status === "accepted"
     ) {
       request.status = "cancelled";
+      // request.status = "cancelled";
+request.acceptedBy = null;
+request.acceptedAt = null;
       await request.save();
       return res.json({ message: "Request cancelled by hosteller" });
     }
@@ -233,21 +253,28 @@ export const markAsPicked = async (req, res) => {
 };
 
 export const deleteRequest = async (req, res) => {
-  try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({ message: "Invalid request ID" });
-    }
 
-    const request = await Request.findById(req.params.id);
+try {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ message: "Invalid request ID" });
+  }
 
-    if (!request) {
-      return res.status(404).json({ message: "Request not found" });
-    }
+  const request = await Request.findById(req.params.id);
 
-    if (request.hosteller.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: "Not authorized" });
-    }
+  if (!request) {
+    return res.status(404).json({ message: "Request not found" });
+  }
 
+  if (request.hosteller.toString() !== req.user._id.toString()) {
+    return res.status(403).json({ message: "Not authorized" });
+  }
+
+  if (request.status === "expired") {
+    return res.status(400).json({
+      message: "Request expired and cannot be modified",
+    });
+
+  }
     if (request.status !== "pending") {
       return res.status(400).json({
         message: "Only pending requests can be deleted",
@@ -278,6 +305,14 @@ export const updateRequest = async (req, res) => {
       return res.status(403).json({ message: "Not authorized" });
     }
 
+    
+    if (request.status === "expired") {
+      return res.status(400).json({
+        message: "Request expired and cannot be modified",
+      });
+    }
+
+    
     if (request.status !== "pending") {
       return res.status(400).json({
         message: "Only pending requests can be updated",
@@ -293,7 +328,7 @@ export const updateRequest = async (req, res) => {
 
       for (const item of items) {
         if (
-          !item.name ||
+          !item.name?.trim() ||
           typeof item.quantity !== "number" ||
           item.quantity <= 0 ||
           typeof item.estimatedPrice !== "number" ||
@@ -319,7 +354,7 @@ export const updateRequest = async (req, res) => {
     }
 
     if (deliveryLocation !== undefined) {
-      if (!deliveryLocation || typeof deliveryLocation !== "string") {
+      if (!deliveryLocation?.trim()) {
         return res.status(400).json({ message: "Invalid delivery location" });
       }
       request.deliveryLocation = deliveryLocation;
@@ -333,8 +368,38 @@ export const updateRequest = async (req, res) => {
 
     await request.save();
 
-    res.json({ message: "Request updated successfully", request });
+    res.json({
+      message: "Request updated successfully",
+      request,
+    });
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
+
+export const getMyDeliveries = async (req, res) => {
+  try {
+    const requests = await Request.find({
+      acceptedBy: req.user._id,
+      status: { $in: ["accepted", "picked", "completed"] }
+    }).populate("hosteller", "name").sort({ acceptedAt: -1 });
+
+    const populatedRequests = await Promise.all(
+      requests.map(async (request) => {
+        const profile = await Profile.findOne({
+          user: request.hosteller._id,
+        }).select("hostellerInfo role");
+
+        return {
+          ...request.toObject(),
+          hostellerProfile: profile,
+        };
+      })
+    );
+    res.json(populatedRequests);
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+}
