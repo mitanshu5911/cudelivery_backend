@@ -114,30 +114,95 @@ export const acceptRequest = async (req, res) => {
   }
 };
 
+// export const getPendingRequests = async (req, res) => {
+//   try {
+//     const requests = await Request.find({ status: "pending" })
+//       .populate("hosteller", "name")
+//       .sort({ createdAt: -1 });
+
+//     const populatedRequests = await Promise.all(
+//       requests.map(async (request) => {
+//         const profile = await Profile.findOne({
+//           user: request.hosteller._id,
+//         }).select("hostellerInfo role");
+
+//         return {
+//           ...request.toObject(),
+//           hostellerProfile: profile,
+//         };
+//       })
+//     );
+//     res.json(populatedRequests);
+//   } catch (error) {
+//     res.status(500).json({ message: error.message });
+//   }
+// };
+
+
 export const getPendingRequests = async (req, res) => {
   try {
-    const requests = await Request.find({ status: "pending" })
-      .populate("hosteller", "name")
-      .sort({ createdAt: -1 });
+    const requests = await Request.aggregate([
+      {
+        $match: { status: "pending" }
+      },
+      {
+        $sort: { createdAt: -1 }
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "hosteller",
+          foreignField: "_id",
+          as: "hosteller"
+        }
+      },
+      {
+        $unwind:{
+          path: "$hosteller",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $lookup: {
+          from: "profiles",
+          localField: "hosteller._id",
+          foreignField: "user",
+          as: "hostellerProfile"
+        }
+      },
+      {
+        $unwind: {
+          path: "$hostellerProfile",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          items: 1,
+          deliveryLocation: 1,
+          itemsTotal: 1,
+          deliveryFee: 1,
+          grandTotal: 1,
+          urgency: 1,
+          instructions: 1,
+          status: 1,
+          createdAt: 1,
+          orderId: 1,
+          "hosteller._id": 1,
+          "hosteller.name": 1,
+          "hostellerProfile.hostellerInfo": 1,
+          "hostellerProfile.role": 1
+        }
+      }
+    ]);
 
-    const populatedRequests = await Promise.all(
-      requests.map(async (request) => {
-        const profile = await Profile.findOne({
-          user: request.hosteller._id,
-        }).select("hostellerInfo role");
+    res.json(requests);
 
-        return {
-          ...request.toObject(),
-          hostellerProfile: profile,
-        };
-      })
-    );
-    res.json(populatedRequests);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
-
 export const completeRequest = async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
@@ -196,12 +261,12 @@ export const cancelRequest = async (req, res) => {
       request.hosteller.toString() === req.user._id.toString() &&
       request.status === "accepted"
     ) {
-      request.status = "cancelled";
+      request.status = "pending";
       // request.status = "cancelled";
 request.acceptedBy = null;
 request.acceptedAt = null;
       await request.save();
-      return res.json({ message: "Request cancelled by hosteller" });
+      return res.json({ message: "Request cancelled by hosteller",request });
     }
 
     if (
@@ -213,7 +278,7 @@ request.acceptedAt = null;
       request.acceptedBy = null;
       request.acceptedAt = null;
       await request.save();
-      return res.json({ message: "Request cancelled by DayScholar" });
+      return res.json({ message: "Request cancelled by DayScholar" , request});
     }
 
     return res.status(400).json({ message: "Cannot cancel this request" });
@@ -403,3 +468,28 @@ export const getMyDeliveries = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 }
+
+export const getRequestById = async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ message: "Invalid request ID" });
+    }
+
+    const request = await Request.findById(req.params.id)
+      .populate("acceptedBy", "name");
+
+    if (!request) {
+      return res.status(404).json({ message: "Request not found" });
+    }
+
+    
+    if (request.hosteller.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    res.json(request);
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

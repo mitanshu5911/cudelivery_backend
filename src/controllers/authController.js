@@ -13,10 +13,16 @@ export const register = async (req, res) => {
       return res.status(400).json({ message: "All fields required" });
     }
 
-    let user = await User.findOne({ email });
+    const emailNormalized = email.toLowerCase();
+    let user = await User.findOne({ email: emailNormalized });
+    
     if (user) {
       return res.status(400).json({ message: "User already exists" });
     }
+
+    if (password.length < 8) {
+  return res.status(400).json({ message: "Password must be at least 8 characters" });
+}
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
@@ -28,8 +34,12 @@ export const register = async (req, res) => {
     });
 
     res.status(201).json({ message: "User registered successfully" });
-    console.log("Registered");
+    // console.log("Registered");
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ message: "Email already exists" });
+    }
+
     res.status(500).json({ error: error.message });
   }
 };
@@ -38,9 +48,18 @@ export const register = async (req, res) => {
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    if (!email || !password) {
+  return res.status(400).json({ message: "Email and password required" });
+}
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    if (user.authProvider !== "local") {
+      return res.status(400).json({
+        message: "Please login using Google",
+      });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
@@ -55,8 +74,7 @@ export const login = async (req, res) => {
       message: "Login Successfully",
       token,
     });
-    console.log("User:", user);
-    console.log("Token:", token);
+    
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -65,6 +83,9 @@ export const login = async (req, res) => {
 //googleCallback
 export const googleCallback = (req, res) => {
   console.log("User:", req.user);
+  if (!req.user) {
+  return res.redirect(`${url}/login`);
+}
   const token = generateToken(req.user._id);
 
   const redirectURL = `${url}/google-success?token=${token}`;
@@ -73,6 +94,9 @@ export const googleCallback = (req, res) => {
 };
 
 export const getMe = (req, res) => {
+  if (!req.user) {
+  return res.status(404).json({ message: "User not found" });
+}
   res.json(req.user);
 };
 
@@ -86,7 +110,7 @@ export const forgotPassword = async (req, res) => {
       const user = await User.findOne({ email });
 
       if (!user) {
-        return res.status(404).json({ message: "User not found" });
+        return res.status(404).json({ message: "If account exists, email has been sent" });
       }
 
       const resetToken = crypto.randomBytes(32).toString("hex");
@@ -101,7 +125,7 @@ export const forgotPassword = async (req, res) => {
       await user.save();
 
       const resetURL = `${url}/reset-password/${resetToken}`;
-
+      try{
       await sendEmail({
         to: user.email,
         subject: "Password Reset",
@@ -109,7 +133,12 @@ export const forgotPassword = async (req, res) => {
       });
 
         res.json({ message: "Password reset email sent" });
-
+    }catch(err){
+      user.resetPasswordToken = undefined; 
+      user.resetPasswordExpire = undefined; 
+      await user.save(); 
+      return res.status(500).json({ message: "Email could not be sent. Please try again.", });
+    }
     
   } catch (error) {
     console.error("Forgot Password Error:", error);
@@ -131,7 +160,9 @@ export const resetPassword = async (req,res) =>{
         if(!user){
             return res.status(400).json({message: "Invalid or expired token"});
         }
-
+        if (!req.body.password) {
+  return res.status(400).json({ message: "Password required" });
+}
         const salt = await bcrypt.genSalt(10);
         user.password = await bcrypt.hash(req.body.password, salt);
 
