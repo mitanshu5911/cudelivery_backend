@@ -4,7 +4,7 @@ import generateToken from "../utils/generateToken.js";
 import sendEmail from "../utils/sendEmail.js";
 import crypto from "crypto";
 
-let url = process.env.FRONTEND_URL || "http://localhost:5173";
+let url = process.env.FRONTEND_URL || "https://cudelivery.onrender.com";
 //Register
 export const register = async (req, res) => {
   try {
