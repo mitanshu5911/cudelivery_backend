@@ -9,8 +9,8 @@ const expireOldRequests = () => {
 
             const result = await Request.updateMany(
                 {
-                     status: "pending",
-          createdAt: { $lte: sevenDaysAgo }
+                    status: "pending",
+                    createdAt: { $lte: sevenDaysAgo }
                 },
                 { status: "expired" }
             )
