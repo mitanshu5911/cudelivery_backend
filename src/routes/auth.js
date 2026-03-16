@@ -10,7 +10,7 @@ import {
   verifyResetToken,
 } from "../controllers/authController.js";
 import protect from '../middlewares/authMiddleware.js'
-let url = process.env.FRONTEND_URL || "http://localhost:5173";
+let url = process.env.FRONTEND_URL || "https://cudelivery.onrender.com";
 const router = express.Router();
 
 router.post("/register", register);
