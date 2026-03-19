@@ -77,6 +77,7 @@ const requestSchema = new mongoose.Schema({
         default: "pending"
     },
     acceptedAt: Date,
+    // createdAt:Date,
     completedAt: Date
 },{timestamps: true}
 );
@@ -96,7 +97,7 @@ requestSchema.pre("save", async function (next) {
 });
 
 requestSchema.index({ status: 1 });
-requestSchema.index({ hosteller: 1 });
-requestSchema.index({ acceptedBy: 1 });
+requestSchema.index({ hosteller: 1 , createdAt: -1});
+requestSchema.index({ acceptedBy: 1, acceptedAt: -1 });
 
 export default mongoose.model("Request", requestSchema);

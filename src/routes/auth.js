@@ -8,9 +8,10 @@ import {
   forgotPassword,
   resetPassword,
   verifyResetToken,
+  changePassword,
 } from "../controllers/authController.js";
 import protect from '../middlewares/authMiddleware.js'
-let url = process.env.FRONTEND_URL || "https://cudelivery.onrender.com";
+let url = process.env.FRONTEND_URL;
 const router = express.Router();
 
 router.post("/register", register);
@@ -21,7 +22,7 @@ router.get("/me", protect, getMe);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password/:token", resetPassword);
 router.get("/reset-password/verify/:token", verifyResetToken);
-
+router.put("/change-password", protect, changePassword);
 router.get(
   "/google",
   passport.authenticate("google", { scope: ["profile", "email"] })

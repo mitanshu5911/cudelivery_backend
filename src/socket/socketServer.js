@@ -1,6 +1,8 @@
 import { Server } from "socket.io";
 import Chat from "../models/Chat.js";
 import Request from "../models/Request.js";
+import User from "../models/User.js";
+
 
 let io;
 
@@ -8,7 +10,8 @@ export const initSocket = (server) => {
 
   io = new Server(server, {
     cors: {
-      origin: process.env.FRONTEND_URL || "http://localhost:5173",
+      origin: process.env.FRONTEND_URL,
+      credentials: true,
       methods: ["GET", "POST"]
     }
   });
@@ -17,37 +20,30 @@ export const initSocket = (server) => {
 
     console.log("Socket connected:", socket.id);
 
-    // Join chat room based on request
+
+    const userId = socket.handshake.auth?.userId;
+    if (userId) {
+      socket.join(`user_${userId}`);
+      console.log(`✅ Joined room: user_${userId}`);
+    }
+
     socket.on("join_request_room", (requestId) => {
-      socket.join(requestId);
+      socket.join(`request_${requestId}`);
     });
 
-    socket.on("send_message", async (data) => {
-
-      const { requestId, senderId, text } = data;
-
+    socket.on("send_message", async ({ requestId, text }) => {
       try {
-
-        if (!text || !text.trim()) return;
+        if (!text?.trim()) return;
 
         const request = await Request.findById(requestId);
-
         if (!request) return;
 
-        // 🚨 NEW IMPROVEMENT
-        // Allow chat only when request is accepted or picked
-        if (request.status !== "accepted" && request.status !== "picked") {
-          return;
-        }
-
         const allowed =
-          request.hosteller.toString() === senderId ||
-          (request.acceptedBy &&
-            request.acceptedBy.toString() === senderId);
+          request.hosteller.toString() === userId ||
+          request.acceptedBy?.toString() === userId;
 
         if (!allowed) return;
 
-        // Ensure chat exists (atomic upsert)
         const chat = await Chat.findOneAndUpdate(
           { request: requestId },
           {
@@ -57,38 +53,38 @@ export const initSocket = (server) => {
               messages: []
             }
           },
-          {
-            new: true,
-            upsert: true
-          }
+          { new: true, upsert: true }
         );
 
+        const senderUser = await User.findById(userId).select("name");
+
         const message = {
-          sender: senderId,
-          text: text.trim()
+          sender: senderUser._id,
+          text,
+          timestamp: new Date()
         };
 
         chat.messages.push(message);
-
         await chat.save();
 
-        const populated = await chat.populate(
-          "messages.sender",
-          "name"
-        );
+        const populatedMessage = {
+          sender: {
+            _id: senderUser._id,
+            name: senderUser.name
+          },
+          text,
+          timestamp: message.timestamp
+        };
 
-        const lastMessage =
-          populated.messages[populated.messages.length - 1];
 
-        // Broadcast message to request room
-        io.to(requestId).emit("receive_message", lastMessage);
+        io.to(`request_${requestId}`).emit("new_message", {
+          requestId,
+          message: populatedMessage
+        });
 
-      } catch (error) {
-
-        console.error("Socket message error:", error);
-
+      } catch (err) {
+        console.error("Chat error:", err.message);
       }
-
     });
 
     socket.on("disconnect", () => {
@@ -99,4 +95,9 @@ export const initSocket = (server) => {
 
 };
 
-export const getIO = () => io;
+export const getIO = () => {
+  if (!io) {
+    throw new Error("Socket.io not initialized");
+  }
+  return io;
+};
