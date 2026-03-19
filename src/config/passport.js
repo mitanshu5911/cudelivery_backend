@@ -1,13 +1,13 @@
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import User from "../models/User.js";
-let url = process.env.FRONTEND_URL;
+// let url = process.env.FRONTEND_URL;
 passport.use(
     new GoogleStrategy(
         {
             clientID: process.env.GOOGLE_CLIENT_ID,
             clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-            callbackURL: `${url}/api/auth/google/callback`,
+            callbackURL: `https://cudelivery-backend-2.onrender.com/api/auth/google/callback`,
         },
         async (accessToken, refreshToken, profile, done) => {
             try{
