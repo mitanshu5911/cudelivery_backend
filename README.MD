@@ -65,7 +65,7 @@ The platform provides a complete ecosystem including authentication, real-time c
 
 ### ✅ Tesseract OCR Integration
 
-The platform uses **Tesseract OCR** to scan and verify Chandigarh University Student ID cards.
+The platform uses **Tesseract OCR** to scan and verify Chitkara University Student ID cards.
 
 ### Why Demo Credentials Are Provided?
 
