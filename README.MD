@@ -285,14 +285,6 @@ Password: #Ruman1196
 
 ---
 
-# 🤝 Contributors
-
-### 👨‍💻 Developed By
-
-Add Your Team Members Here
-
----
-
 # 📄 License
 
 This project is developed for educational and learning purposes.
